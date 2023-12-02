@@ -6,10 +6,40 @@ const LOG_SHEET_INDEX = 0; // Index of the sheet to log in (0 for the first shee
  * It sets up the necessary components and then runs the unsubscribe process.
  */
 function run() {
+  setupTriggers(); // Ensure triggers are set up
   setupLogSheet(); // Ensure log sheet is set up
   unsubscribeAndDelete(); // Run the unsubscribe and delete process
 }
 
+/**
+ * Checks and sets up the necessary triggers for the script.
+ */
+function setupTriggers() {
+  if (!isTriggerSet('run')) {
+    ScriptApp.newTrigger('run')
+      .timeBased()
+      .everyMinutes(5) // Set this to your desired frequency
+      .create();
+    Logger.log('Trigger for "run" function created.');
+  } else {
+    Logger.log('Trigger for "run" function already exists.');
+  }
+}
+
+/**
+ * Checks if a trigger for a specific function name already exists.
+ * @param {string} functionName - The name of the function to check for.
+ * @return {boolean} - True if the trigger exists, false otherwise.
+ */
+function isTriggerSet(functionName) {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let trigger of triggers) {
+    if (trigger.getHandlerFunction() === functionName) {
+      return true;
+    }
+  }
+  return false;
+}
 /**
  * Sets up the log sheet. It uses the first sheet in the spreadsheet.
  * Adds headers if the sheet is empty.
@@ -67,28 +97,30 @@ function unsubscribeAndDelete() {
  * @return {boolean} - True if an unsubscribe attempt was made, false otherwise.
  */
 function attemptUnsubscribe(emailBody) {
-  // Use a broad regex pattern to capture a link that includes the word 'unsubscribe'
   let pattern = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(?:.*?unsubscribe.*?)<\/a>/i;
   let unsubscribeLink = emailBody.match(pattern);
 
-  // If a link is found, try to fetch it
   if (unsubscribeLink && unsubscribeLink[1]) {
     let link = unsubscribeLink[1].trim();
-    // Some additional logging for debugging
     Logger.log('Unsubscribe link found: ' + link);
     try {
-      // Making a GET request to the unsubscribe link
-      let response = UrlFetchApp.fetch(link, { method: 'get', muteHttpExceptions: true });
-      // Log the HTTP response code for confirmation
+      // Set the timeout for the request
+      let options = {
+        method: 'get',
+        muteHttpExceptions: true,
+        timeoutSeconds: 25 // Timeout set to 25 seconds
+      };
+
+      let response = UrlFetchApp.fetch(link, options);
+
       Logger.log('Request sent. Response code was: ' + response.getResponseCode());
       return true;
     } catch (e) {
-      // Log any errors encountered during the request
-      Logger.log('Error following unsubscribe link: ' + e.message);
+      // Handle timeout or other errors
+      Logger.log('Error following unsubscribe link or request timed out: ' + e.message);
       return false;
     }
   } else {
-    // Log if no unsubscribe link is found
     Logger.log('No unsubscribe link found in the email.');
     return false;
   }
